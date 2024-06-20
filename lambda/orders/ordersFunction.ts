@@ -1,6 +1,13 @@
+/* 
+  Este arquivo deveria ser outro nome pois não é uma função apenas
+  Aqui é o handler das requisições que passa pelo APIGateway
+  Seria a porta de entrada das requisições
+*/
+
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from "aws-lambda";
 import { ProductRepository, Product } from "/opt/nodejs/productsLayer"
-import { DynamoDB, Lambda } from 'aws-sdk'
+import { OrderEvent, OrderEventType, Envelope } from "/opt/nodejs/ordersEventsLayer";
+import { DynamoDB, Lambda, SNS } from 'aws-sdk'
 import * as AWSXray from 'aws-xray-sdk'
 import { Event, EventType } from "/opt/nodejs/eventsLayer";
 import { OrdersRepository, Order } from "/opt/nodejs/ordersLayer";
@@ -8,10 +15,12 @@ import { CarrierType, OrderProductResponse, OrderRequest, OrderResponse, Payment
 
 AWSXray.captureAWS(require('aws-sdk'))
 
-const ordersDdb = process.env.ORDERS_DDB!
-const productsDdb = process.env.PRODUCTS_DDB!
+const ordersDdb = process.env.ORDERS_DDB! // Pegando os nomes das tabelas, deixando como opcional (!)
+const productsDdb = process.env.PRODUCTS_DDB! // Pegando os nomes das tabelas, deixando como opcional (!)
+const orderEventTopicArn = process.env.ORDER_EVENTS_TOPIC_ARN! // Pegando o ARN do tópico SNS registrado na função
 
-const ddbClient = new DynamoDB.DocumentClient()
+const ddbClient = new DynamoDB.DocumentClient() // cliente do dynamoDB
+const snsClient = new SNS() // cliente do SNS
 
 const orderReposistory = new OrdersRepository(ddbClient, ordersDdb)
 const productRepository = new ProductRepository(ddbClient, productsDdb)
@@ -78,6 +87,12 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
       const order = buildOrder(orderRequest, products)
       const orderCreated = await orderReposistory.createOrder(order)
 
+      // Publica o evento no tópico
+      const snsResult = await sendOrderEvent(orderCreated, OrderEventType.CREATED, lambdaRequestId)
+      console.log(
+        `Order created event sent - OrderID: ${orderCreated.sk} - MessageId: ${snsResult.MessageId}`
+      )
+
       return {
         statusCode: 201,
         body: JSON.stringify(convertToOrderResponse(orderCreated))
@@ -98,6 +113,12 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
 
     try {
       const orderDeleted = await orderReposistory.deleteOrder(email, orderId)
+      
+      // Publica o evento no tópico
+      const snsResult = await sendOrderEvent(orderDeleted, OrderEventType.DELETE, lambdaRequestId)
+      console.log(
+        `Order deleted event sent - OrderID: ${orderDeleted.sk} - MessageId: ${snsResult.MessageId}`
+      )
   
       return {
         statusCode: 200,
@@ -118,12 +139,34 @@ export async function handler(event: APIGatewayProxyEvent, context: Context): Pr
     body: 'Bad Request'
   }
 }
-/* 
-  Converter um pedido para um response
 
-  @params: order = veio da tabela do banco
-*/
+// Publica uma mensagem no SNS
+function sendOrderEvent(order: Order, eventType: OrderEventType, lambdaRequestId: string) {
+  const productCodes: string[] = []
+  
+  order.products.map(product => productCodes.push(product.code))
 
+  const orderEvent: OrderEvent = {
+    productCodes,
+    email: order.pk,
+    orderId: order.sk,
+    billing: order.billing,
+    shipping: order.shipping,
+    requestId: lambdaRequestId
+  }
+
+  const envelope: Envelope = {
+    eventType,
+    data: JSON.stringify(orderEvent)
+  }
+
+  return snsClient.publish({
+    TopicArn: orderEventTopicArn,
+    Message: JSON.stringify(envelope)
+  }).promise()
+}
+
+// Converter um pedido para um response
 function convertToOrderResponse(order: Order): OrderResponse {
   const orderProducts: OrderProductResponse[] = []
 
@@ -180,7 +223,7 @@ function buildOrder(orderRequest: OrderRequest, products: Product[]): Order {
       type: orderRequest.shipping.type,
       carrier: orderRequest.shipping.carrier
     },
-    products: orderProducts
+    products: orderProducts,
   }
 
   return order

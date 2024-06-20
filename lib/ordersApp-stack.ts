@@ -6,7 +6,6 @@ import * as ssm from 'aws-cdk-lib/aws-ssm' // recurso AWS Systems Manager para g
 import * as sns from 'aws-cdk-lib/aws-sns'
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
 
-
 import { Construct } from 'constructs'
 
 interface OrdersAppStackProps extends cdk.StackProps {
@@ -106,7 +105,7 @@ export class OrdersAppStack extends cdk.Stack {
       tracing: lambda.Tracing.ACTIVE, // gera impacto no custo da operação pois precisa gerar um trace nos logs
       insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0
     })
-    
+
     // inscrevendo a função ordersEventsHandler no SNS
     ordersTopic.addSubscription(new subs.LambdaSubscription(ordersEventsHandler))
   }

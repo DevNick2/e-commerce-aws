@@ -36,6 +36,9 @@
       ],
       "/opt/nodejs/ordersApiLayer": [ // este é o caminho real onde será armazenado os layers
         "lambda/orders/layers/ordersApiLayer/nodejs/ordersApi"
+      ],
+      "/opt/nodejs/ordersEventsLayer": [ // este é o caminho real onde será armazenado os layers
+        "lambda/orders/layers/ordersEventsLayer/nodejs/orderEvent"
       ]
     }
   },

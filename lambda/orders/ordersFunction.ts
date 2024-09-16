@@ -178,7 +178,7 @@ function convertToOrderResponse(order: Order): OrderResponse {
   })
 
   const orderResponse: OrderResponse = {
-    email: order.pk, // o email é a partition key (???????)
+    email: order.pk, // o email é a partition key
     id: order.sk,
     createdAt: order.createdAt!,
     products: orderProducts,
@@ -214,6 +214,7 @@ function buildOrder(orderRequest: OrderRequest, products: Product[]): Order {
   })
 
   const order: Order = {
+    sk: '',
     pk: orderRequest.email,
     billing: {
       payment: orderRequest.payment,

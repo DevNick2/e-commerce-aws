@@ -5,6 +5,7 @@ import * as db from 'aws-cdk-lib/aws-dynamodb'
 import * as ssm from 'aws-cdk-lib/aws-ssm' // recurso AWS Systems Manager para guardar paramatros na aws
 import * as sns from 'aws-cdk-lib/aws-sns'
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions'
+import * as iam from 'aws-cdk-lib/aws-iam'
 
 import { Construct } from 'constructs'
 
@@ -36,6 +37,10 @@ export class OrdersAppStack extends cdk.Stack {
     // Order Event Layer (Topico SNS)
     const orderEventLayerArn = ssm.StringParameter.valueForStringParameter(this, 'OrdersEventsLayerVersionArn') // busca o ARN do OrdersEventsLayerVersionArn do parameter store
     const orderEventLayer = lambda.LayerVersion.fromLayerVersionArn(this, 'orderEventLayerArn', orderEventLayerArn) // instancia a função que busca pelo ARN do orderEventLayerArn pelo lambda.LayerVersion
+    
+    // Order Event Repository Layer (Repositório)
+    const orderEventsRepositoryArn = ssm.StringParameter.valueForStringParameter(this, 'OrdersEventsRepositoryLayerVersionArn') // busca o ARN do OrdersEventsLayerVersionArn do parameter store
+    const orderEventsRepository = lambda.LayerVersion.fromLayerVersionArn(this, 'OrderEventRepositoryLayerArn', orderEventsRepositoryArn) // instancia a função que busca pelo ARN do orderEventLayerArn pelo lambda.LayerVersion
 
     const ordersDdb = new db.Table(this, 'OrdersDdb', {
       tableName: 'orders',
@@ -89,7 +94,7 @@ export class OrdersAppStack extends cdk.Stack {
     // Função dos eventos dos pedidos (SNS)
     const ordersEventsHandler = new lambdaNodeJs.NodejsFunction(this, 'OrdersEventsFunction', { // função de pedidos
       functionName: 'OrdersEventsFunction',
-      entry: 'lambda/orders/orderEventsFunction.ts',
+      entry: 'lambda/orders/ordersEventsFunction.ts',
       handler: 'handler',
       memorySize: 512,
       timeout: cdk.Duration.seconds(2),
@@ -100,7 +105,7 @@ export class OrdersAppStack extends cdk.Stack {
       environment: {
         EVENTS_DDB: props.eventsDdb.tableName
       },
-      layers: [orderEventLayer], // Adiciona os layers para compartilhar com a função de pedidos
+      layers: [orderEventLayer, orderEventsRepository], // Adiciona os layers para compartilhar com a função de pedidos
       runtime: lambda.Runtime.NODEJS_20_X,
       tracing: lambda.Tracing.ACTIVE, // gera impacto no custo da operação pois precisa gerar um trace nos logs
       insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0
@@ -108,5 +113,19 @@ export class OrdersAppStack extends cdk.Stack {
 
     // inscrevendo a função ordersEventsHandler no SNS
     ordersTopic.addSubscription(new subs.LambdaSubscription(ordersEventsHandler))
+    
+    // Criando a politica de permissão
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ["ForAllValues:StringLike"]: { // para todos os valores de string
+          "dynamodb:LeadingKeys": ["#order_*"] // esta e a condição para efetuar a ação
+        }
+      }
+    })
+
+    ordersEventsHandler.addToRolePolicy(eventsDdbPolicy)
   }
 }

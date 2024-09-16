@@ -37,9 +37,10 @@ productsAppStack.addDependency(productsAppLayersStack)
 productsAppStack.addDependency(eventsDdbStack)
 
 const ordersAppLayerStack = new OrdersAppLayerStack(app, 'OrdersAppLayers', { tags, env })
-const ordersAppStack = new OrdersAppStack(app, 'OrdersApp', { tags, env, productsDdb: productsAppStack.productsDdb })
+const ordersAppStack = new OrdersAppStack(app, 'OrdersApp', { tags, env, productsDdb: productsAppStack.productsDdb, eventsDdb: eventsDdbStack.table })
 ordersAppStack.addDependency(productsAppStack)
 ordersAppStack.addDependency(ordersAppLayerStack)
+ordersAppStack.addDependency(eventsDdbStack)
 
 const eCommerceApiStack = new ECommerceApiStack(app, 'EcommerceApi', {
   tags,

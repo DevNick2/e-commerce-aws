@@ -39,6 +39,9 @@
       ],
       "/opt/nodejs/ordersEventsLayer": [ // este é o caminho real onde será armazenado os layers
         "lambda/orders/layers/ordersEventsLayer/nodejs/orderEvent"
+      ],
+      "/opt/nodejs/ordersEventsRepositoryLayer": [ // este é o caminho real onde será armazenado os layers
+        "lambda/orders/layers/ordersEventsRepositoryLayer/nodejs/orderEventRepository"
       ]
     }
   },

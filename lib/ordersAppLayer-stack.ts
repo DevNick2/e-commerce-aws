@@ -45,6 +45,19 @@ export class OrdersAppLayerStack extends cdk.Stack {
     new ssm.StringParameter(this, 'OrdersEventsLayerVersionArn' /* Identificação lá no Cloud Formation */, {
       parameterName: 'OrdersEventsLayerVersionArn',
       stringValue: orderEventsLayer.layerVersionArn
+    })    
+    
+    const orderEventsRepository = new lambda.LayerVersion(this, 'OrderEventsRepositoryLayer', { // layer de repositório
+      code: lambda.Code.fromAsset('lambda/orders/layers/ordersEventsRepositoryLayer'), // onde o código que vai ser executado esta
+      compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
+      layerVersionName: 'OrderEventsRepositoryLayer',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    })
+
+    // Salva no parameter store (SSM) o ARN (Amazon Resource Name) do orderEventsRepositoryLayer
+    new ssm.StringParameter(this, 'OrdersEventsRepositoryLayerVersionArn' /* Identificação lá no Cloud Formation */, {
+      parameterName: 'OrdersEventsRepositoryLayerVersionArn',
+      stringValue: orderEventsRepository.layerVersionArn
     })
   }
 }
